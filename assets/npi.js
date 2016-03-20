@@ -48,8 +48,14 @@ angular.module("app", ['ui.grid', 'ui.grid.resizeColumns'])
     if (!$scope.npiList || $scope.npiList.length === 0) return;
 
     // Split input list on commas or whitespace
-    var npiNumbers = $scope.npiList.split(/[,\s]+/);
+    var npiList = $scope.npiList.replace(/^\s+/, '');
+    npiList = npiList.replace(/\s+$/, '');
+
+    var npiNumbers = npiList.split(/[,\s]+/);
     console.log('Number of list elements: ' + npiNumbers.length);
+
+    var npiSet = new Set(npiNumbers);
+    console.log('Number of unique list elements: ' + npiSet.size);
 
     $scope.gridOptions.data = [];     // Clear the grid
     $scope.isLoading = true;          // Flag loading
@@ -57,7 +63,8 @@ angular.module("app", ['ui.grid', 'ui.grid.resizeColumns'])
     var promises = [];
 
     // Spawn separate requests for each NPI
-    npiNumbers.forEach(function(npiNumber) {
+    //npiNumbers.forEach(function(npiNumber) {
+    npiSet.forEach(function(npiNumber) {
       var p = $http({
         method: "GET",
         url: "http://localhost:1337/Proxy/LookupByNPI",

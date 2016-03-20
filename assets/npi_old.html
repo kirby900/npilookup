@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+    <title>NPI Lookup</title>
+
+    <!-- Bootstrap -->
+    <link href="bower_components/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+
+    <script type="text/javascript" src="bower_components/angular/angular.min.js"></script>
+<!--
+    <link rel="stylesheet" type="text/css" href="bower_components/angular-ui-grid/ui-grid.min.css">
+    <script src="bower_components/angular-ui-grid/ui-grid.min.js"></script>
+
+    <style>
+      .myGrid {
+        width: 100%;
+        height: 250px;
+      }
+    </style>
+-->
+
+    <script type="text/javascript">
+    angular.module("app", [])
+      .controller("MyController", function($scope, $http){
+        console.log("Entered MyController");
+        var self = this;
+
+        self.npiList = "";
+        self.matches = [];
+
+        self.sortProperty = 'number';
+        self.sortReverse = false;
+        self.setSort = function(propertyName){
+          if (propertyName === self.sortProperty){
+            self.sortReverse = !self.sortReverse;
+          } else {
+            self.sortProperty = propertyName;
+            self.sortReverse = false;
+          }
+        };
+
+        self.isSortAsc = function(propertyName){
+          return propertyName === self.sortProperty && !self.sortReverse;
+        };
+
+        self.isSortDesc = function(propertyName){
+          return propertyName === self.sortProperty && self.sortReverse;
+        };
+
+        self.sortClass = function(propertyName){
+          if (propertyName === self.sortProperty){
+            return self.sortReverse ? 
+              "glyphicon glyphicon glyphicon-arrow-down" :
+                "glyphicon glyphicon glyphicon-arrow-up";
+          }
+          return "";
+        }
+
+        self.lookup = function(){
+          console.log("Entered lookup()");
+          if (!self.npiList || self.npiList.length === 0) return;
+
+          // Split input list on commas or whitespace
+          var npiNumbers = self.npiList.split(/[,\s]+/);
+          console.log('Number of list elements: ' + npiNumbers.length);
+
+          self.matches = [];
+          var promises = [];
+
+          // Spawn separate requests for each NPI
+          npiNumbers.forEach(function(npiNumber){
+            $http({
+              method: "GET",
+              url: "http://localhost:1337/Proxy/LookupByNPI",
+              responseType: "json",
+              params: { npi: npiNumber }
+            })
+            .then(function(response){
+              //console.log("Success");
+              var data = response.data;
+              //console.log(data);
+
+              if (data.Errors){
+                console.log('Error returned for NPI ' + npiNumber);
+                //console.log(data.Errors.number);
+                var msg = data.Errors.number.split('.');
+                
+                self.matches.push({
+                  number: npiNumber - 0, // subtract zero to ensure treatment as a number rather than string
+                  name: msg[0]
+                });
+
+              } else {
+                var results = response.data.results;
+
+                results.forEach(function(row){
+                  self.matches.push({
+                    number: row.number,
+                    firstName: row.basic.first_name,
+                    lastName: row.basic.last_name,
+                    name: row.basic.name,
+                    credential: row.basic.credential,
+                    city: row.addresses[0].city,
+                    state: row.addresses[0].state,
+                    enumeration_type: row.enumeration_type
+                  });
+                });
+              }
+            }, function(response){
+              console.log("Error");
+
+            }); // then
+
+          }); // npiNumbers.forEach
+        };
+
+      });
+    </script>
+  </head>
+
+  <body data-ng-app="app">
+    <div class="container" data-ng-controller="MyController as ctrl">
+      <h1>NPI Lookup</h1>
+
+      <p>Enter one or more NPIs, separated by commas, spaces, tabs, or new lines:</p>
+
+      <form name="npi_inputs" class="form-horizontal">
+        <fieldset>
+          <div class="form-group">
+            <div class="col-sm-12">
+              <textarea class="form-control" data-ng-model="ctrl.npiList" rows="10"></textarea>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="col-sm-12">
+              <button type="button" class="btn btn-primary"
+                data-ng-disabled="ctrl.npiList.length === 0" 
+                data-ng-click="ctrl.lookup()">Search</button>
+            </div>
+          </div>
+        </fieldset>
+      </form>
+
+      <div class="row" data-ng-show="ctrl.matches.length > 0">
+        <div class="col-sm-12">
+          
+          <table class="table table-condensed">
+            <thead>
+              <tr>
+                <th><a href="#" data-ng-click="ctrl.setSort('number')">NPI # <span class="{{ ctrl.sortClass('number') }}" aria-hidden="true"></span></a></th>
+                <th><a href="#" data-ng-click="ctrl.setSort('name')">Name <span data-ng-class="ctrl.sortClass('name')" aria-hidden="true"></span></a></th>
+                <th><a href="#" data-ng-click="ctrl.setSort('credential')">Credential <span data-ng-class="ctrl.sortClass('credential')" aria-hidden="true"></span></a></th>
+                <th><a href="#" data-ng-click="ctrl.setSort('city')">City <span data-ng-class="ctrl.sortClass('city')" aria-hidden="true"></span></a></th>
+                <th><a href="#" data-ng-click="ctrl.setSort('state')">State <span data-ng-class="ctrl.sortClass('state')" aria-hidden="true"></span></a></th>
+                <th><a href="#" data-ng-click="ctrl.setSort('enumeration_type')">Type <span data-ng-class="ctrl.sortClass('enumeration_type')" aria-hidden="true"></span></a></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-ng-repeat="rec in ctrl.matches | orderBy : ctrl.sortProperty : ctrl.sortReverse">
+                <td>{{ rec.number }}</td>
+                <td>{{ rec.name }}</td>
+                <td>{{ rec.credential }}</td>
+                <td>{{ rec.city }}</td>
+                <td>{{ rec.state }}</td>
+                <td>{{ rec.enumeration_type }}</td>
+              </tr>
+            </tbody>
+          </table>
+          
+        </div>
+      </div>
+    </div>
+
+    <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+    <!--<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>-->
+    <!-- Include all compiled plugins (below), or include individual files as needed -->
+    <!---<script src="js/bootstrap.min.js"></script>-->
+
+  </body>
+</html>
